@@ -2,27 +2,27 @@ import React, { useState } from "react";
 import { Form, Collapse, Spinner } from "react-bootstrap";
 import PropTypes from "prop-types";
 
-const TableRow = ({
-  data,
-  columns,
-  rowsPerPage,
-  selectRow,
-  expandRow,
-  rowIndex
-}) => {
+const TableRow = ({ data, columns, selectRow, expandRow, rowIndex }) => {
   const [isExpand, setIsExpand] = useState(false);
 
-  const handleRowClick = (e) => {
-    e.stopPropagation();
-
-    if (selectRow?.clickToSelect) {
-      selectRow?.onSelect(data);
+  const handleRowClick = () => {
+    if (!expandRow && !selectRow) {
+      return;
     }
+
+    if (selectRow?.clickToSelect && selectRow?.onSelect) {
+      selectRow.onSelect(data);
+    }
+
     setIsExpand(!isExpand);
   };
 
   const renderSelect = () => {
     let checked = false;
+    if (!selectRow) {
+      return null;
+    }
+
     if (selectRow?.mode === "checkbox") {
       checked = !!selectRow?.selected?.find(
         (select) => JSON.stringify(select) === JSON.stringify(data)
@@ -38,7 +38,14 @@ const TableRow = ({
           value={data}
           checked={checked}
           onChange={() => {
-            selectRow?.onSelect(data, rowsPerPage);
+            if (selectRow?.onSelect) {
+              selectRow.onSelect(data);
+            }
+          }}
+          onMouseDown={(e) => {
+            if (selectRow?.clickToSelect) {
+              e.stopPropagation();
+            }
           }}
         />
       </td>
@@ -47,12 +54,17 @@ const TableRow = ({
 
   const renderExpandRow = () => {
     const colSpan = selectRow ? columns.length + 1 : columns.length;
+    const expandRowBody = expandRow?.renderer(data, rowIndex);
+
+    if (!expandRow || !expandRowBody) {
+      return null;
+    }
 
     return (
       <Collapse in={isExpand}>
         <tr>
           <td colSpan={colSpan} className="expandRowContainer">
-            {expandRow?.renderer(data, rowIndex)}
+            {expandRowBody}
           </td>
         </tr>
       </Collapse>
@@ -60,7 +72,9 @@ const TableRow = ({
   };
 
   const getStyle = (column, colIndex) => {
-    if (!column.style) return {};
+    if (!column.style) {
+      return {};
+    }
 
     if (typeof column.style === "object") {
       return column.style;
@@ -70,7 +84,9 @@ const TableRow = ({
   };
 
   const getClasses = (column, colIndex) => {
-    if (!column.classes) return "";
+    if (!column.classes) {
+      return "";
+    }
 
     if (typeof column.classes === "string") {
       return column.classes;
@@ -81,22 +97,11 @@ const TableRow = ({
 
   return (
     <>
-      <tr onClick={handleRowClick}>
-        {selectRow && renderSelect()}
-        {columns?.map((column, index) => {
-          const key = `cell-${column.dataField}-${index}`;
-          const colIndex = selectRow ? index + 1 : index;
-          if (!column.formatter) {
-            return (
-              <td
-                key={key}
-                className={getClasses(column, colIndex)}
-                style={getStyle(column, colIndex)}
-              >
-                {data[column.dataField]}
-              </td>
-            );
-          }
+      <tr onMouseDown={handleRowClick}>
+        {renderSelect()}
+        {columns?.map((column, idx) => {
+          const key = `cell-${column.dataField}-${idx}`;
+          const colIndex = selectRow ? idx + 1 : idx;
 
           return (
             <td
@@ -104,17 +109,19 @@ const TableRow = ({
               className={getClasses(column, colIndex)}
               style={getStyle(column, colIndex)}
             >
-              {column.formatter(
-                data[column.dataField],
-                data,
-                rowIndex,
-                isExpand
-              )}
+              {!column.formatter
+                ? data[column.dataField]
+                : column.formatter(
+                    data[column.dataField],
+                    data,
+                    rowIndex,
+                    isExpand
+                  )}
             </td>
           );
         })}
       </tr>
-      {expandRow && renderExpandRow()}
+      {renderExpandRow()}
     </>
   );
 };
@@ -123,13 +130,11 @@ TableRow.propTypes = {
   data: PropTypes.object.isRequired,
   columns: PropTypes.array.isRequired,
   selectRow: PropTypes.object,
-  rowsPerPage: PropTypes.number,
   expandRow: PropTypes.object,
   rowIndex: PropTypes.number
 };
 
 TableRow.defaultProps = {
-  rowsPerPage: 0,
   expandRow: null,
   selectRow: {},
   rowIndex: 0
@@ -152,7 +157,7 @@ const TableBody = ({
   const renderNoDataIndicationElement = () => (
     <tr>
       <td colSpan={colSpan}>
-        <center>{t("default.no-data")}</center>
+        <center>no data</center>
       </td>
     </tr>
   );
@@ -173,10 +178,9 @@ const TableBody = ({
           const rowIndex = (page - 1) * rowsPerPage + index;
           return (
             <TableRow
-              key={`${item[keyField]}`}
+              key={`${item[keyField]}-${rowIndex}`}
               data={item}
               columns={columns}
-              rowsPerPage={rowsPerPage}
               selectRow={selectRow}
               expandRow={expandRow}
               rowIndex={rowIndex}
@@ -200,8 +204,7 @@ TableBody.propTypes = {
   page: PropTypes.number,
   rowsPerPage: PropTypes.number,
   expandRow: PropTypes.object,
-  noDataIndication: PropTypes.oneOfType([PropTypes.bool, PropTypes.func]),
-  t: PropTypes.func
+  noDataIndication: PropTypes.oneOfType([PropTypes.bool, PropTypes.func])
 };
 
 TableBody.defaultProps = {
@@ -210,8 +213,7 @@ TableBody.defaultProps = {
   rowsPerPage: 0,
   expandRow: null,
   selectRow: {},
-  noDataIndication: null,
-  t: () => null
+  noDataIndication: null
 };
 
 export default TableBody;

@@ -1,7 +1,7 @@
-import React, { useState } from "react";
-import { Dropdown, Form } from "react-bootstrap";
+import React, { useState } from 'react';
+import { Dropdown, Form } from 'react-bootstrap';
 
-import "./MultiCheckboxComboBox.scss";
+import './MultiCheckboxComboBox.scss';
 
 interface IItemsProps {
   [key: string]: string | object;
@@ -24,26 +24,22 @@ interface IOnSelectChangeProps {
 const defaultProps = {
   values: [],
   items: [],
-  placeholder: "",
+  placeholder: '',
   disabled: false,
-  onSelectChange: () => null
+  onSelectChange: () => null,
 };
 
-const MultiCheckboxComboBox = (
-  props: IMultiCheckboxComboBoxProps & typeof defaultProps
-) => {
+const MultiCheckboxComboBox = (props: IMultiCheckboxComboBoxProps & typeof defaultProps) => {
   const {
     values,
     itemLabelKey,
     items,
     placeholder,
     disabled,
-    onSelectChange
+    onSelectChange,
   } = props;
   const [showSelectContainer, setShowSelectContainer] = useState(false);
-  const selectButtonClassName = showSelectContainer
-    ? "selectButton"
-    : "selectButton selectButton--hide";
+  const selectButtonClassName = showSelectContainer ? 'selectButton' : 'selectButton selectButton--hide';
 
   const handleSelectChange = (handleChangeProps: IOnSelectChangeProps) => {
     const { newItem, isString } = handleChangeProps;
@@ -52,20 +48,18 @@ const MultiCheckboxComboBox = (
       if (values.find((value) => value === newItem)) {
         newSelectValues = values.filter((value) => value !== newItem);
       } else {
-        newSelectValues = items.filter(
-          (item) => values.find((value) => value === item) || item === newItem
-        );
+        newSelectValues = items.filter((item) => (
+            values.find((value) => value === item)
+            || item === newItem
+          ));
       }
     } else if (values.find((value) => value[itemLabelKey] === newItem)) {
-      newSelectValues = values.filter(
-        (value) => value[itemLabelKey] !== newItem
-      );
+      newSelectValues = values.filter((value) => value[itemLabelKey] !== newItem);
     } else {
-      newSelectValues = items.filter(
-        (item) =>
-          values.find((value) => value[itemLabelKey] === item[itemLabelKey]) ||
-          newItem === item[itemLabelKey]
-      );
+      newSelectValues = items.filter((item) => (
+        values.find((value) => value[itemLabelKey] === item[itemLabelKey])
+        || newItem === item[itemLabelKey]
+      ));
     }
 
     onSelectChange(newSelectValues);
@@ -79,38 +73,34 @@ const MultiCheckboxComboBox = (
 
   return (
     <div className="multiCheckboxComboBox">
-      <button
-        className={selectButtonClassName}
-        type="button"
-        disabled={disabled}
-        onClick={() => {
-          setShowSelectContainer(!showSelectContainer);
-        }}
-      >
-        {values.length ? (
-          <span className="value value--itemContainer">
-            {values.map((value) => {
-              const showString =
-                typeof value === "string" ? value : value[itemLabelKey];
-              return (
-                <span key={showString} className="value value--item">
-                  {showString}
-                </span>
-              );
-            })}
-          </span>
-        ) : (
-          <span className="value value--placeholder">{placeholder}</span>
-        )}
-      </button>
       <Dropdown
-        align="end"
         show={showSelectContainer}
         onToggle={handleMenuToggle}
       >
-        <Dropdown.Menu className="comboBoxMenu">
+        <button
+          className={selectButtonClassName}
+          type="button"
+          disabled={disabled}
+          onClick={() => {
+            setShowSelectContainer(!showSelectContainer);
+          }}
+        >
+          {values.length
+            ? (
+              <span className="value value--itemContainer">
+                {values.map((value) => {
+                  const showString = typeof value === 'string' ? value : value[itemLabelKey];
+                  return (
+                    <span key={showString} className="value value--item">{showString}</span>
+                  );
+                })}
+              </span>
+              )
+            : <span className="value value--placeholder">{placeholder}</span>}
+        </button>
+        <Dropdown.Menu>
           {items.map((item) => {
-            const isString = typeof item === "string";
+            const isString = typeof item === 'string';
             const newItem = isString ? item : item[itemLabelKey];
             const checked = !!values.find((value) => {
               if (isString) {
@@ -122,7 +112,6 @@ const MultiCheckboxComboBox = (
 
             return (
               <Dropdown.Item
-                eventKey="selectItem"
                 key={newItem}
                 onClick={() => {
                   handleSelectChange({ newItem, isString });

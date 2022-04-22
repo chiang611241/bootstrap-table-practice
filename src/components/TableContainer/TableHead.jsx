@@ -1,67 +1,67 @@
-import React, { useRef } from "react";
+import React, { Component, createRef } from "react";
 import { Form } from "react-bootstrap";
 import PropTypes from "prop-types";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import MultiCheckboxComboBox from "../MultiCheckboxComboBox";
+import { faCaretUp, faCaretDown } from "@fortawesome/free-solid-svg-icons";
 
-const HeadColumn = ({
-  column,
-  index,
-  sort,
-  filters,
-  handleDataSort,
-  handleFilterValueChange
-}) => {
-  const inputRef = useRef(null);
-  const renderSortArrow = (sortType) => {
-    switch (sortType) {
-      case "":
-        return (
-          <>
-            <span className="dropdown">
-              <span className="caret caret--both" />
-            </span>
-            <span className="dropup">
-              <span className="caret caret--both" />
-            </span>
-          </>
-        );
-      case "desc":
-        return (
-          <span className="dropup">
-            <span className="caret" />
-          </span>
-        );
-      case "asc":
-        return (
-          <span className="dropdown">
-            <span className="caret" />
-          </span>
-        );
-      default:
-        return null;
+class HeadColumn extends Component {
+  constructor(props) {
+    super(props);
+
+    this.refInput = createRef();
+    this.handleThClick = this.handleThClick.bind(this);
+  }
+
+  handleThClick = (e) => {
+    const { column, handleDataSort } = this.props;
+    if (!column.sort) {
+      return;
+    }
+
+    if (!column.filter || !this.refInput.current?.contains(e.target)) {
+      handleDataSort(column.dataField);
     }
   };
 
-  const renderFilter = (filterColumn, dataField) => {
-    if (filterColumn.type === "text") {
+  renderFilter = (filterColumn, dataField) => {
+    const { handleFilterValueChange } = this.props;
+    if (!filterColumn.type) {
+      return null;
+    }
+
+    let value = "";
+
+    if (filterColumn?.value) {
+      value = filterColumn.value;
+    } else if (filterColumn.type === "multiSelect" && !filterColumn?.value) {
+      value = [];
+    }
+
+    if (filterColumn.type === "select") {
       return (
-        <Form.Control
-          className="sortButton--filter"
-          type="text"
-          placeholder={filterColumn?.placeholder || dataField}
-          value={filterColumn?.value || ""}
+        <Form.Select
+          value={value}
+          selected={!!value}
           onChange={(e) => {
             handleFilterValueChange(e.target.value, dataField, filterColumn);
           }}
-        />
+        >
+          <option value="">{filterColumn.placeholder || dataField}</option>
+          {filterColumn?.options?.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </Form.Select>
       );
     }
 
     if (filterColumn.type === "multiSelect") {
       return (
         <MultiCheckboxComboBox
-          values={filterColumn?.value || []}
-          items={filterColumn.options}
+          values={value}
+          items={filterColumn?.options}
           placeholder={filterColumn?.placeholder || dataField}
           onSelectChange={(values) => {
             handleFilterValueChange(values, dataField, filterColumn);
@@ -71,70 +71,78 @@ const HeadColumn = ({
     }
 
     return (
-      <Form.Select
-        value={filterColumn?.value || ""}
-        selected={!!filterColumn?.value || ""}
+      <Form.Control
+        type="text"
+        placeholder={filterColumn?.placeholder || dataField}
+        value={value}
         onChange={(e) => {
           handleFilterValueChange(e.target.value, dataField, filterColumn);
         }}
-      >
-        <option value="">{filterColumn.placeholder || dataField}</option>
-        {filterColumn.options.map((item) => (
-          <option key={item.value} value={item.value}>
-            {item.label}
-          </option>
-        ))}
-      </Form.Select>
+      />
     );
   };
 
-  const getStyle = (column, colIndex) => {
-    if (!column.headerStyle) return {};
-
-    if (typeof column.headerStyle === "object") {
-      return column.headerStyle;
+  renderSortArrow() {
+    const { column, sort } = this.props;
+    if (!column.sort || !sort) {
+      return null;
     }
 
-    return column.headerStyle(column, colIndex);
-  };
+    switch (sort[column.dataField]) {
+      case "desc":
+        return <FontAwesomeIcon icon={faCaretUp} className="arrow" />;
+      case "asc":
+        return <FontAwesomeIcon icon={faCaretDown} className="arrow" />;
+      default:
+        return (
+          <>
+            <FontAwesomeIcon icon={faCaretUp} className="arrow arrow--both" />
+            <FontAwesomeIcon icon={faCaretDown} className="arrow arrow--both" />
+          </>
+        );
+    }
+  }
 
-  const getClasses = (column, colIndex) => {
-    if (!column.headerClasses) return "";
+  render() {
+    const { column, index, filters } = this.props;
 
+    const headClassNames = ["tableHead"];
     if (typeof column.headerClasses === "string") {
-      return column.headerClasses;
+      headClassNames.push(column.headerClasses);
+    } else if (column.headerClasses) {
+      headClassNames.push(column.headerClasses(column, index));
     }
 
-    return column.headerClasses(column, colIndex);
-  };
+    let headStyle;
+    if (typeof column.headerStyle === "object") {
+      headStyle = column.headerStyle;
+    } else if (column.headerStyle) {
+      headStyle = column.headerStyle(column, index);
+    }
 
-  return (
-    <th
-      key={column.dataField}
-      className={`tableHead ${getClasses(column, index)}`}
-      style={getStyle(column, index)}
-      onClick={(e) => {
-        if (column.sort && !inputRef.current?.contains(e.target)) {
-          handleDataSort(column.dataField);
-        }
-      }}
-    >
-      <span>{column.text}</span>
-      {column.sort && renderSortArrow(sort[column.dataField])}
-      {column.filter && (
-        <div ref={inputRef}>
-          {renderFilter(filters[column.dataField], column.dataField)}
-        </div>
-      )}
-    </th>
-  );
-};
+    return (
+      <th
+        className={headClassNames.join(" ")}
+        style={headStyle}
+        onClick={this.handleThClick}
+      >
+        <span>{column.text}</span>
+        {this.renderSortArrow()}
+        {column.filter && (
+          <div ref={this.refInput}>
+            {this.renderFilter(filters[column.dataField], column.dataField)}
+          </div>
+        )}
+      </th>
+    );
+  }
+}
 
 HeadColumn.propTypes = {
   column: PropTypes.object.isRequired,
-  index: PropTypes.number.isRequired,
   sort: PropTypes.object.isRequired,
   filters: PropTypes.object.isRequired,
+  index: PropTypes.number.isRequired,
   handleDataSort: PropTypes.func,
   handleFilterValueChange: PropTypes.func
 };
@@ -147,16 +155,16 @@ HeadColumn.defaultProps = {
 const TableHead = ({
   selectRow,
   columns,
-  remote,
-  data,
+  pageStartIndex,
+  pageDataLen,
   sort,
   handleDataSort,
   filters,
   handleFilterValueChange
 }) => {
   const selectedLen = selectRow?.selected?.length || 0;
-  const checked = data.length && selectedLen === data.length;
-  const checkClassName = selectedLen ? "indeterminate" : "";
+  const checked = pageDataLen && selectedLen === pageDataLen;
+  const checkClassName = !checked && selectedLen ? "indeterminate" : "";
 
   return (
     <thead>
@@ -170,7 +178,9 @@ const TableHead = ({
                 value="selectAll"
                 checked={checked}
                 onChange={() => {
-                  return selectRow?.onSelectAll(data);
+                  if (selectRow?.onSelectAll) {
+                    selectRow.onSelectAll(pageStartIndex);
+                  }
                 }}
               />
             )}
@@ -178,12 +188,11 @@ const TableHead = ({
         )}
         {columns.map((column, index) => (
           <HeadColumn
-            key={`${column.text}-${index}`}
+            key={column.dataField}
             column={column}
             index={index}
             sort={sort}
             filters={filters}
-            remote={remote}
             handleDataSort={handleDataSort}
             handleFilterValueChange={handleFilterValueChange}
           />
@@ -195,18 +204,17 @@ const TableHead = ({
 
 TableHead.propTypes = {
   columns: PropTypes.array.isRequired,
-  data: PropTypes.array.isRequired,
+  pageStartIndex: PropTypes.number.isRequired,
+  pageDataLen: PropTypes.number.isRequired,
   sort: PropTypes.object.isRequired,
   filters: PropTypes.object.isRequired,
   selectRow: PropTypes.object,
-  remote: PropTypes.bool,
   handleDataSort: PropTypes.func,
   handleFilterValueChange: PropTypes.func
 };
 
 TableHead.defaultProps = {
   selectRow: {},
-  remote: false,
   handleDataSort: () => null,
   handleFilterValueChange: () => null
 };
