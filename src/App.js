@@ -19,12 +19,13 @@ const expandRow = {
 export default function App() {
   const [state, setState] = useState(products);
   const [loading, setLoading] = useState(true);
-  // const [page, setPage] = useState(1);
-  // const [selectRow, setSelectRow] = useState([]);
 
   useEffect(() => {
     setTimeout(() => setLoading(false), 2000);
-  });
+
+    return () => clearTimeout();
+  }, []);
+
   const columns = [
     {
       dataField: "id",
@@ -41,11 +42,7 @@ export default function App() {
     },
     {
       dataField: "price",
-      text: "Product Price",
-      filter: {
-        type: "multiSelect",
-        options: ["2102", "2103", "2104"]
-      }
+      text: "Product Price"
     },
     {
       dataField: "checked",
@@ -63,25 +60,7 @@ export default function App() {
             }}
           />
         );
-      },
-      filter: {
-        type: "select",
-        options: [
-          { label: "勾選", value: true },
-          { label: "未勾選", value: false }
-        ]
-      },
-      style: (_cell, _row, rowIndex, _colIndex) => {
-        if (rowIndex % 2 === 0) {
-          return {
-            backgroundColor: "#81c784"
-          };
-        }
-        return {
-          backgroundColor: "#c8e6c9"
-        };
-      },
-      classes: "selectRow--cell"
+      }
     }
   ];
 
@@ -93,25 +72,7 @@ export default function App() {
       expandRow={expandRow}
       loading={loading}
       noDataIndication
-      defaultSorted={[{ dataField: "name", order: "asc" }]}
-      // remote
-      // getList={() => null}
-      // defaultSorted={[{
-      //   dataField: 'name',
-      //   order: 'asc',
-      // }]}
-      // pagination={{
-      //   page,
-      //   sizePerPage: 10,
-      //   showTotal: true,
-      //   totalSize: 200,
-      //   onPageNumberChange: setPage
-      // }}
-      // selectRow={{
-      //   mode: "checkbox",
-      //   selected: selectRow,
-      //   onSelectChange: setSelectRow
-      // }}
+      showIndex
     />
   );
 }
