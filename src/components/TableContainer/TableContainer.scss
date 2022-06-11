@@ -1,12 +1,5 @@
-
 .TableContainer {
-  .table {
-    table-layout: fixed;
-  }
-
-  .table-responsive {
-    overflow: visible;
-  }
+  table-layout: fixed;
 
   .tableHead {
     vertical-align: top;
@@ -16,11 +9,54 @@
     padding: 0;
   }
 
-  .arrow {
+  .indexCell {
+    width: 40px;
+    text-align: center;
+  }  
+  
+  .sortButton {
+    height: 100%;
+    width: 100%;
+    border: 0;
+    text-align: left;
+    font-weight: bold;
+    background-color: white;
+  }
+
+  .dropdown,
+  .dropup {
+    position: relative;
+  }
+
+  .caret {
+    display: inline-block;
     margin-left: 0.255em;
+    vertical-align: 0.255em;
+    content: '';
+  }
+
+  .both-arrow {
+    white-space: nowrap;
+  }
+
+  .dropup .caret {
+    border-top: 0.35em solid black;
+    border-right: 0.35em solid transparent;
+    border-bottom: 0;
+    border-left: 0.35em solid transparent;
 
     &--both {
-      color: #ced4da;
+      border-top: 0.35em solid #ced4da;
+    }
+  }
+
+  .dropdown .caret {
+    border-bottom: 0.35em solid black;
+    border-right: 0.35em solid transparent;
+    border-left: 0.35em solid transparent;
+
+    &--both {
+      border-bottom: 0.35em solid #ced4da;
     }
   }
 
@@ -42,4 +78,10 @@
       box-shadow: none;
     }
   }
+}
+
+.indeterminate .form-check-input[type='checkbox']:not(:checked) {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10h8'/%3e%3c/svg%3e");
 }
