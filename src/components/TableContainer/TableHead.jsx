@@ -1,9 +1,7 @@
-import React, { Component, createRef } from "react";
+import React, { createRef, Component } from "react";
 import { Form } from "react-bootstrap";
 import PropTypes from "prop-types";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import MultiCheckboxComboBox from "../MultiCheckboxComboBox";
-import { faCaretUp, faCaretDown } from "@fortawesome/free-solid-svg-icons";
 
 class HeadColumn extends Component {
   constructor(props) {
@@ -14,8 +12,8 @@ class HeadColumn extends Component {
   }
 
   handleThClick = (e) => {
-    const { column, handleDataSort } = this.props;
-    if (!column.sort) {
+    const { editMode, column, handleDataSort } = this.props;
+    if (editMode || !column.sort) {
       return;
     }
 
@@ -25,30 +23,27 @@ class HeadColumn extends Component {
   };
 
   renderFilter = (filterColumn, dataField) => {
-    const { handleFilterValueChange } = this.props;
-    if (!filterColumn.type) {
+    const { editMode, handleFilterValueChange } = this.props;
+    if (!filterColumn?.type) {
       return null;
     }
 
-    let value = "";
-
-    if (filterColumn?.value) {
-      value = filterColumn.value;
-    } else if (filterColumn.type === "multiSelect" && !filterColumn?.value) {
-      value = [];
-    }
+    const { value } = filterColumn;
+    const placeholder = filterColumn.placeholder || "";
+    const options = filterColumn.options || [];
 
     if (filterColumn.type === "select") {
       return (
         <Form.Select
           value={value}
           selected={!!value}
+          disabled={editMode}
           onChange={(e) => {
             handleFilterValueChange(e.target.value, dataField, filterColumn);
           }}
         >
-          <option value="">{filterColumn.placeholder || dataField}</option>
-          {filterColumn?.options?.map((item) => (
+          {placeholder && <option value="">{placeholder}</option>}
+          {options.map((item) => (
             <option key={item.value} value={item.value}>
               {item.label}
             </option>
@@ -60,9 +55,14 @@ class HeadColumn extends Component {
     if (filterColumn.type === "multiSelect") {
       return (
         <MultiCheckboxComboBox
+          controlId={`table-filter-${dataField}`}
           values={value}
-          items={filterColumn?.options}
-          placeholder={filterColumn?.placeholder || dataField}
+          items={options}
+          itemLabelKey="label"
+          itemValueKey="value"
+          placeholder={placeholder}
+          canSelectAll={!!filterColumn.canSelectAll}
+          disabled={editMode}
           onSelectChange={(values) => {
             handleFilterValueChange(values, dataField, filterColumn);
           }}
@@ -73,8 +73,9 @@ class HeadColumn extends Component {
     return (
       <Form.Control
         type="text"
-        placeholder={filterColumn?.placeholder || dataField}
+        placeholder={placeholder}
         value={value}
+        disabled={editMode}
         onChange={(e) => {
           handleFilterValueChange(e.target.value, dataField, filterColumn);
         }}
@@ -90,15 +91,27 @@ class HeadColumn extends Component {
 
     switch (sort[column.dataField]) {
       case "desc":
-        return <FontAwesomeIcon icon={faCaretUp} className="arrow" />;
+        return (
+          <span className="dropup">
+            <span className="caret" />
+          </span>
+        );
       case "asc":
-        return <FontAwesomeIcon icon={faCaretDown} className="arrow" />;
+        return (
+          <span className="dropdown">
+            <span className="caret" />
+          </span>
+        );
       default:
         return (
-          <>
-            <FontAwesomeIcon icon={faCaretUp} className="arrow arrow--both" />
-            <FontAwesomeIcon icon={faCaretDown} className="arrow arrow--both" />
-          </>
+          <div className="both-arrow">
+            <span className="dropdown">
+              <span className="caret caret--both" />
+            </span>
+            <span className="dropup">
+              <span className="caret caret--both" />
+            </span>
+          </div>
         );
     }
   }
@@ -126,12 +139,18 @@ class HeadColumn extends Component {
         style={headStyle}
         onClick={this.handleThClick}
       >
-        <span>{column.text}</span>
-        {this.renderSortArrow()}
-        {column.filter && (
-          <div ref={this.refInput}>
-            {this.renderFilter(filters[column.dataField], column.dataField)}
-          </div>
+        {!column.headerFormatter ? (
+          <>
+            <span>{column.text}</span>
+            {this.renderSortArrow()}
+            {column.filter && (
+              <div ref={this.refInput}>
+                {this.renderFilter(filters[column.dataField], column.dataField)}
+              </div>
+            )}
+          </>
+        ) : (
+          column.headerFormatter(column.text, column.dataField)
         )}
       </th>
     );
@@ -139,6 +158,7 @@ class HeadColumn extends Component {
 }
 
 HeadColumn.propTypes = {
+  editMode: PropTypes.bool,
   column: PropTypes.object.isRequired,
   sort: PropTypes.object.isRequired,
   filters: PropTypes.object.isRequired,
@@ -148,11 +168,13 @@ HeadColumn.propTypes = {
 };
 
 HeadColumn.defaultProps = {
+  editMode: false,
   handleDataSort: () => null,
   handleFilterValueChange: () => null
 };
 
 const TableHead = ({
+  editMode,
   selectRow,
   columns,
   pageStartIndex,
@@ -160,7 +182,9 @@ const TableHead = ({
   sort,
   handleDataSort,
   filters,
-  handleFilterValueChange
+  handleFilterValueChange,
+  showIndex,
+  showIndexHeaderFormatter
 }) => {
   const selectedLen = selectRow?.selected?.length || 0;
   const checked = pageDataLen && selectedLen === pageDataLen;
@@ -177,6 +201,7 @@ const TableHead = ({
                 type="checkbox"
                 value="selectAll"
                 checked={checked}
+                disabled={editMode}
                 onChange={() => {
                   if (selectRow?.onSelectAll) {
                     selectRow.onSelectAll(pageStartIndex);
@@ -186,9 +211,15 @@ const TableHead = ({
             )}
           </th>
         )}
+        {showIndex && (
+          <th className="indexCell">
+            {showIndexHeaderFormatter() ?? <span />}
+          </th>
+        )}
         {columns.map((column, index) => (
           <HeadColumn
             key={column.dataField}
+            editMode={editMode}
             column={column}
             index={index}
             sort={sort}
@@ -203,18 +234,24 @@ const TableHead = ({
 };
 
 TableHead.propTypes = {
+  editMode: PropTypes.bool,
   columns: PropTypes.array.isRequired,
   pageStartIndex: PropTypes.number.isRequired,
   pageDataLen: PropTypes.number.isRequired,
   sort: PropTypes.object.isRequired,
   filters: PropTypes.object.isRequired,
   selectRow: PropTypes.object,
+  showIndex: PropTypes.bool,
+  showIndexHeaderFormatter: PropTypes.func,
   handleDataSort: PropTypes.func,
   handleFilterValueChange: PropTypes.func
 };
 
 TableHead.defaultProps = {
+  editMode: false,
   selectRow: {},
+  showIndex: false,
+  showIndexHeaderFormatter: () => null,
   handleDataSort: () => null,
   handleFilterValueChange: () => null
 };

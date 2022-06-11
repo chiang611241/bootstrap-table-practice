@@ -1,4 +1,4 @@
-import React, { PureComponent } from "react";
+import React, { Component, createRef, forwardRef } from "react";
 import { Table } from "react-bootstrap";
 import PropTypes from "prop-types";
 import TableHead from "./TableHead";
@@ -7,58 +7,99 @@ import TablePagination from "./TablePagination";
 
 import "./TableContainer.scss";
 
-const handleSort = (data, dataField, sortType) => {
-  return data.sort((a, b) => {
-    if (typeof a[dataField] === "number" || typeof a[dataField] === "boolean") {
-      return sortType === "asc"
-        ? a[dataField] - b[dataField]
-        : b[dataField] - a[dataField];
+const sortDataByField = (data, dataField, sortType) => {
+  if (!dataField || !sortType) {
+    return;
+  }
+
+  const defaultAscNum = sortType === "asc" ? -1 : 1;
+  data.sort((a, b) => {
+    let valA = a[dataField];
+    let valB = b[dataField];
+    if (typeof valA === "boolean") {
+      valA = Number(valA);
+      valB = Number(valB);
+    } else if (typeof valA !== "number") {
+      valA = (valA || "").toString().toLowerCase();
+      valB = (valB || "").toString().toLowerCase();
     }
 
-    a = a[dataField].toLowerCase();
-    b = b[dataField].toLowerCase();
-    if (a < b) return sortType === "asc" ? 1 : -1;
-    if (a > b) return sortType === "asc" ? -1 : 1;
+    if (valA < valB) {
+      return defaultAscNum;
+    }
+    if (valA > valB) {
+      return defaultAscNum * -1;
+    }
     return 0;
   });
 };
 
-const handleDataFilter = (data, filters) => {
+const sortDataByObject = (data, sortObj) => {
+  for (const sortKey in sortObj) {
+    if (sortObj[sortKey]) {
+      sortDataByField(data, sortKey, sortObj[sortKey]);
+      break;
+    }
+  }
+};
+
+const getFilteredData = (data, filters) => {
   const filterKeys = Object.keys(filters);
   return data.filter((item) =>
     filterKeys.every((key) => {
-      if (!filters[key].value) return true;
+      const filterObj = filters[key];
+      const itemValue = item[key];
+      const { type, value } = filterObj;
 
-      // multiSelect filter
-      if (Array.isArray(filters[key].value)) {
-        // 如果沒有選取任何選項, 不做 filter
-        if (!filters[key].value.length) return true;
+      switch (type) {
+        case "multiSelect":
+          if (!Array.isArray(value) || !value.length) {
+            return false;
+          }
+          return value.some((val) => itemValue === val);
+        case "select":
+          if (!value) {
+            return true;
+          }
+          if (Array.isArray(itemValue)) {
+            return itemValue
+              .find((itemVal) => itemVal.toString() === value)
+              ?.toString();
+          }
+          return value === itemValue?.toString();
+        case "text":
+        default:
+          if (!value) {
+            return true;
+          }
 
-        return filters[key].value.some((filterValue) =>
-          item[key].toString().includes(filterValue)
-        );
+          return itemValue?.toString().includes(filters[key].value);
       }
-
-      return item[key].toString().includes(filters[key].value);
     })
   );
 };
 
-class TableContainer extends PureComponent {
+class TableContainer extends Component {
   constructor(props) {
     super(props);
 
-    const { sort, filter } = TableContainer.getInitState(props.columns);
+    const { sort, filter } = TableContainer.getInitState(
+      props.columns,
+      props.defaultSorted
+    );
     this.state = {
+      hasRunDefaultSort: false,
+      oriData: [],
       page: 1,
       data: [],
-      oriData: null,
       sort,
-      defaultSorted: [],
-      filters: filter
+      filters: filter,
+      columns: [],
+      oriColumns: []
     };
 
     this.rowsPerPage = props.pagination.sizePerPage || 0;
+    this.tableBodyRef = createRef();
 
     this.handleDataSort = this.handleDataSort.bind(this);
     this.handleFilterValueChange = this.handleFilterValueChange.bind(this);
@@ -70,12 +111,39 @@ class TableContainer extends PureComponent {
 
   static getDerivedStateFromProps(nextProps, prevState) {
     let newState = prevState;
+
+    if (nextProps.columns !== prevState.oriColumns) {
+      const { sort, filter } = TableContainer.getInitState(
+        nextProps.columns,
+        nextProps.defaultSorted
+      );
+      newState = {
+        ...newState,
+        columns: [...nextProps.columns],
+        oriColumns: nextProps.columns,
+        filters: filter,
+        sort
+      };
+    }
+
     if (nextProps.data !== prevState.oriData) {
       newState = {
         ...newState,
         data: [...nextProps.data],
         oriData: nextProps.data
       };
+
+      if (!nextProps.remote) {
+        newState.data = getFilteredData(nextProps.data, newState.filters);
+        if (!newState.hasRunDefaultSort) {
+          newState.hasRunDefaultSort = true;
+          nextProps.defaultSorted?.forEach((item) => {
+            sortDataByField(newState.data, item.dataField, item.order || "asc");
+          });
+        } else {
+          sortDataByObject(newState.data, newState.sort);
+        }
+      }
     }
 
     if (
@@ -88,28 +156,6 @@ class TableContainer extends PureComponent {
       };
     }
 
-    if (
-      nextProps.defaultSorted.length &&
-      nextProps.defaultSorted !== prevState.defaultSorted
-    ) {
-      const newSort = { ...newState.sort };
-      const data = [...newState.data];
-      let newData = {};
-      nextProps.defaultSorted.forEach((item) => {
-        newSort[item.dataField] = item.order;
-        if (data) {
-          newData = handleSort(data, item.dataField, item.order);
-        }
-      });
-
-      newState = {
-        ...newState,
-        data: newData,
-        sort: newSort,
-        defaultSorted: nextProps.defaultSorted
-      };
-    }
-
     if (newState !== prevState) {
       return newState;
     }
@@ -117,17 +163,27 @@ class TableContainer extends PureComponent {
     return null;
   }
 
-  static getInitState(columns) {
+  static getInitState(columns, defaultSorted) {
     const sort = {};
     const filter = {};
     columns.forEach((column) => {
       if (column.filter) {
-        filter[column.dataField] = column.filter;
+        const defVal = column.filter.type === "multiSelect" ? [] : "";
+        filter[column.dataField] = {
+          ...column.filter,
+          value: column.filter.defaultValue || defVal
+        };
       }
       if (column.sort) {
         sort[column.dataField] = "";
       }
     });
+
+    const idx = (defaultSorted?.length || 0) - 1;
+    if (idx > -1) {
+      const item = defaultSorted[idx];
+      sort[item.dataField] = item.order || "asc";
+    }
 
     return { sort, filter };
   }
@@ -157,8 +213,9 @@ class TableContainer extends PureComponent {
         filter: this.getFilters(filters)
       });
     } else {
+      sortDataByField(data, dataField, newSort[dataField]);
       this.setState({
-        data: handleSort(data, dataField, newSort[dataField]),
+        data,
         sort: newSort
       });
     }
@@ -185,28 +242,46 @@ class TableContainer extends PureComponent {
     } else {
       this.setState({
         filters: newFilter,
-        data: value
-          ? handleDataFilter(this.props.data, newFilter)
-          : this.props.data
+        data: getFilteredData(this.props.data, newFilter)
       });
     }
   }
 
   handlePageChange(value, pagination, rowsPerPage) {
+    const { getList, remote } = this.props;
+    const { sort, filters } = this.state;
     this.setState({ page: value });
 
     if (pagination.onPageNumberChange) {
       pagination.onPageNumberChange(value, rowsPerPage);
     }
+
+    if (getList && remote) {
+      getList({
+        limit: this.rowsPerPage,
+        skip: Math.max((value - 1) * this.rowsPerPage, 0),
+        sort,
+        filter: this.getFilters(filters)
+      });
+    }
   }
 
   handleOnSelect(isSelect) {
     const { selectRow } = this.props;
-    const { mode, selected, onSelectChange } = selectRow;
+    if (!selectRow) {
+      return;
+    }
 
+    const {
+      mode = "checkbox",
+      selected = [],
+      onSelectChange = () => null
+    } = selectRow;
     let newSelected = [];
 
-    if (!onSelectChange) return;
+    if (!onSelectChange) {
+      return;
+    }
 
     if (mode === "checkbox") {
       if (
@@ -249,9 +324,11 @@ class TableContainer extends PureComponent {
 
   handleSelectClean() {
     const { selectRow } = this.props;
-    const { mode, onSelectChange } = selectRow;
+    const { mode = "checkbox", onSelectChange = () => null } = selectRow;
 
-    if (!onSelectChange) return;
+    if (!onSelectChange) {
+      return;
+    }
 
     if (mode === "checkbox") {
       onSelectChange([]);
@@ -303,19 +380,27 @@ class TableContainer extends PureComponent {
     return { pageData, pageDataLen };
   }
 
+  expandRowFlagOpen(flag) {
+    return this.tableBodyRef?.current?.expandRowOpen(flag);
+  }
+
   render() {
-    let { selectRow } = this.props;
     const {
+      editMode,
       loading,
       keyField,
-      columns,
       noDataIndication,
-      pagination,
       hover,
       expandRow,
-      remote
+      pagination,
+      selectRow,
+      remote,
+      showIndex,
+      showIndexHeaderFormatter,
+      hideHeader,
+      tableClassName
     } = this.props;
-    const { data, page, sort, filters } = this.state;
+    const { data, filters, sort, page, columns } = this.state;
     const { pageStartIndex, paginationEndNumber } = this.getStartEndIndex(
       data,
       page,
@@ -327,6 +412,11 @@ class TableContainer extends PureComponent {
       pageStartIndex,
       paginationEndNumber
     );
+    let newTableContainerClassName = "TableContainer";
+
+    if (tableClassName) {
+      newTableContainerClassName = `${newTableContainerClassName} ${tableClassName}`;
+    }
 
     let newSelectRow = null;
     if (selectRow) {
@@ -360,19 +450,25 @@ class TableContainer extends PureComponent {
     }
 
     return (
-      <div className="TableContainer">
+      <div className={newTableContainerClassName}>
         <Table bordered responsive hover={hover}>
-          <TableHead
-            selectRow={newSelectRow}
-            columns={columns}
-            pageStartIndex={pageStartIndex}
-            pageDataLen={pageDataLen}
-            sort={sort}
-            handleDataSort={this.handleDataSort}
-            filters={filters}
-            handleFilterValueChange={this.handleFilterValueChange}
-          />
+          {!hideHeader && (
+            <TableHead
+              editMode={editMode}
+              selectRow={newSelectRow}
+              columns={columns}
+              pageStartIndex={pageStartIndex}
+              pageDataLen={pageDataLen}
+              sort={sort}
+              handleDataSort={this.handleDataSort}
+              filters={filters}
+              handleFilterValueChange={this.handleFilterValueChange}
+              showIndex={showIndex}
+              showIndexHeaderFormatter={showIndexHeaderFormatter}
+            />
+          )}
           <TableBody
+            ref={this.tableBodyRef}
             loading={loading}
             data={pageData}
             columns={columns}
@@ -382,15 +478,18 @@ class TableContainer extends PureComponent {
             expandRow={expandRow}
             noDataIndication={noDataIndication}
             keyField={keyField}
+            showIndex={showIndex}
           />
         </Table>
         <TablePagination
+          editMode={editMode}
           paginationEndNumber={paginationEndNumber}
           page={page}
           pageDataLen={pageDataLen}
+          dataTotalLen={data.length}
           setPage={(value) => {
             this.handlePageChange(value, newPagination, this.rowsPerPage);
-            if (selectRow.selected) {
+            if (selectRow) {
               this.handleSelectClean();
             }
           }}
@@ -403,9 +502,10 @@ class TableContainer extends PureComponent {
 }
 
 TableContainer.propTypes = {
-  keyField: PropTypes.string.isRequired,
+  editMode: PropTypes.bool,
   loading: PropTypes.bool,
   getList: PropTypes.func,
+  keyField: PropTypes.string.isRequired,
   columns: PropTypes.array,
   data: PropTypes.array,
   hover: PropTypes.bool,
@@ -414,10 +514,15 @@ TableContainer.propTypes = {
   pagination: PropTypes.object,
   expandRow: PropTypes.object,
   remote: PropTypes.bool,
-  selectRow: PropTypes.object
+  selectRow: PropTypes.object,
+  showIndex: PropTypes.bool,
+  showIndexHeaderFormatter: PropTypes.func,
+  hideHeader: PropTypes.bool,
+  tableClassName: PropTypes.string
 };
 
 TableContainer.defaultProps = {
+  editMode: false,
   loading: false,
   getList: () => null,
   columns: [],
@@ -426,9 +531,17 @@ TableContainer.defaultProps = {
   selectRow: null,
   defaultSorted: [],
   noDataIndication: false,
-  pagination: {},
+  pagination: {
+    hidePageListOnlyOnePage: true
+  },
   expandRow: null,
-  hover: false
+  hover: false,
+  showIndex: false,
+  showIndexHeaderFormatter: () => null,
+  hideHeader: false,
+  tableClassName: ""
 };
 
-export default TableContainer;
+export default forwardRef((props, ref) => (
+  <TableContainer ref={ref} {...props} />
+));

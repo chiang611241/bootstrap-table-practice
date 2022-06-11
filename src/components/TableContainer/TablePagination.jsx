@@ -33,8 +33,7 @@ const Total = ({
   page,
   paginationEndNumber,
   rowsPerPage,
-  dataTotalSize,
-  t
+  dataTotalSize
 }) => {
   const from = pageDataLen ? (page - 1) * rowsPerPage + 1 : 0;
   let to = 0;
@@ -52,7 +51,11 @@ const Total = ({
 
   return (
     <span>
-      {from} - {to} / {dataTotalSize}
+      {from}
+      &nbsp; to &nbsp;
+      {to}
+      &nbsp; / &nbsp; total &nbsp;
+      {dataTotalSize}
     </span>
   );
 };
@@ -62,16 +65,15 @@ Total.propTypes = {
   page: PropTypes.number.isRequired,
   dataTotalSize: PropTypes.number.isRequired,
   paginationEndNumber: PropTypes.number,
-  rowsPerPage: PropTypes.number.isRequired,
-  t: PropTypes.func
+  rowsPerPage: PropTypes.number.isRequired
 };
 
 Total.defaultProps = {
-  paginationEndNumber: 1,
-  t: () => null
+  paginationEndNumber: 1
 };
 
 const PaginationBlock = ({
+  editMode,
   pagination,
   page,
   setPage,
@@ -83,8 +85,18 @@ const PaginationBlock = ({
     const paginations = [];
 
     for (let i = start; i <= end; i++) {
+      const active = i === page;
       paginations.push(
-        <Pagination.Item key={i} active={i === page} onClick={() => setPage(i)}>
+        <Pagination.Item
+          key={i}
+          active={active}
+          disabled={!active && editMode}
+          onClick={() => {
+            if (!active) {
+              setPage(i);
+            }
+          }}
+        >
           {i}
         </Pagination.Item>
       );
@@ -99,20 +111,34 @@ const PaginationBlock = ({
 
   return (
     <Pagination>
-      {start !== 1 && <Pagination.First onClick={() => setPage(1)} />}
-      {page !== 1 && <Pagination.Prev onClick={() => setPage(page - 1)} />}
+      {start !== 1 && (
+        <Pagination.First disabled={editMode} onClick={() => setPage(1)} />
+      )}
+      {page !== 1 && (
+        <Pagination.Prev
+          disabled={editMode}
+          onClick={() => setPage(page - 1)}
+        />
+      )}
       {renderPagination()}
       {page + 1 <= paginationEndNumber && (
-        <Pagination.Next onClick={() => setPage(page + 1)} />
+        <Pagination.Next
+          disabled={editMode}
+          onClick={() => setPage(page + 1)}
+        />
       )}
       {end !== paginationEndNumber && (
-        <Pagination.Last onClick={() => setPage(paginationEndNumber)} />
+        <Pagination.Last
+          disabled={editMode}
+          onClick={() => setPage(paginationEndNumber)}
+        />
       )}
     </Pagination>
   );
 };
 
 PaginationBlock.propTypes = {
+  editMode: PropTypes.bool,
   pagination: PropTypes.object.isRequired,
   page: PropTypes.number.isRequired,
   paginationEndNumber: PropTypes.number,
@@ -120,23 +146,27 @@ PaginationBlock.propTypes = {
 };
 
 PaginationBlock.defaultProps = {
+  editMode: false,
   paginationEndNumber: 1,
   setPage: () => null
 };
 
 const TablePagination = ({
+  editMode,
   paginationEndNumber,
   page,
   pageDataLen,
   setPage,
   pagination,
-  t,
+  dataTotalLen,
   rowsPerPage
 }) => {
   if (pagination === false) {
     return null;
   }
   const nowPage = pagination.page || page;
+  const dataTotalSize =
+    pagination.totalSize !== undefined ? pagination.totalSize : dataTotalLen;
 
   return (
     <Row>
@@ -148,13 +178,13 @@ const TablePagination = ({
             paginationEndNumber={paginationEndNumber}
             pageDataLen={pageDataLen}
             rowsPerPage={rowsPerPage}
-            dataTotalSize={pagination.totalSize}
-            t={t}
+            dataTotalSize={dataTotalSize}
           />
         )}
       </Col>
       <Col xs={6} className="d-flex justify-content-end">
         <PaginationBlock
+          editMode={editMode}
           pagination={pagination}
           paginationEndNumber={paginationEndNumber}
           page={nowPage}
@@ -166,16 +196,18 @@ const TablePagination = ({
 };
 
 TablePagination.propTypes = {
+  editMode: PropTypes.bool,
   page: PropTypes.number.isRequired,
   setPage: PropTypes.func.isRequired,
   pageDataLen: PropTypes.number.isRequired,
-  pagination: PropTypes.oneOfType([PropTypes.bool, PropTypes.object]),
+  dataTotalLen: PropTypes.number.isRequired,
+  pagination: PropTypes.object,
   paginationEndNumber: PropTypes.number,
-  t: PropTypes.func,
   rowsPerPage: PropTypes.number
 };
 
 TablePagination.defaultProps = {
+  editMode: false,
   paginationEndNumber: 1,
   pagination: false,
   rowsPerPage: 10
