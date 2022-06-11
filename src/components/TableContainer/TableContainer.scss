@@ -1,5 +1,7 @@
 .TableContainer {
-  table-layout: fixed;
+  .table {
+    table-layout: fixed;
+  }
 
   .tableHead {
     vertical-align: top;
